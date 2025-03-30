@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star to Ribbon Converter</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #121620;
+            font-family: Arial, sans-serif;
+        }
+        
+        #canvas-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        #emoji-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .ribbon-emoji {
+            position: absolute;
+            font-size: 14px;
+            transform: translate(-50%, -50%);
+        }
+        
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            z-index: 100;
+        }
+        
+        button {
+            background: #4a5568;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        
+        button:hover {
+            background: #2d3748;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .file-label {
+            background: #4a5568;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        
+        .file-label:hover {
+            background: #2d3748;
+        }
+        
+        .threshold-control {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .threshold-control label {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <canvas id="sourceCanvas"></canvas>
+        <div id="emoji-layer"></div>
+    </div>
+    
+    <div class="controls">
+        <input type="file" id="imageUpload" accept="image/*">
+        <label for="imageUpload" class="file-label">Upload Image</label>
+        <button id="processBtn">Process Image</button>
+        <button id="downloadBtn">Download Result</button>
+        
+        <div class="threshold-control">
+            <label for="brightnessThreshold">Brightness Threshold:</label>
+            <input type="range" id="brightnessThreshold" min="100" max="250" value="200">
+            <span id="thresholdValue">200</span>
+        </div>
+        
+        <div class="threshold-control">
+            <label for="emojiSelect">Emoji:</label>
+            <select id="emojiSelect">
+                <option value="🎀" selected>🎀 (Ribbon)</option>
+                <option value="⭐">⭐ (Star)</option>
+                <option value="✨">✨ (Sparkle)</option>
+                <option value="💫">💫 (Dizzy)</option>
+                <option value="🌟">🌟 (Glowing Star)</option>
+            </select>
+        </div>
+    </div>
+    
+    <script>
+        const sourceCanvas = document.getElementById('sourceCanvas');
+        const ctx = sourceCanvas.getContext('2d');
+        const emojiLayer = document.getElementById('emoji-layer');
+        const imageUpload = document.getElementById('imageUpload');
+        const processBtn = document.getElementById('processBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const brightnessThresholdSlider = document.getElementById('brightnessThreshold');
+        const thresholdValueDisplay = document.getElementById('thresholdValue');
+        const emojiSelect = document.getElementById('emojiSelect');
+        
+        let originalImage = null;
+        
+        // Update threshold value display
+        brightnessThresholdSlider.addEventListener('input', function() {
+            thresholdValueDisplay.textContent = this.value;
+        });
+        
+        // Handle image upload
+        imageUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    loadImage(event.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Load default night sky image from URL
+        function loadDefaultImage() {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = function() {
+                originalImage = img;
+                resizeCanvas();
+                drawImage();
+            };
+            img.onerror = function() {
+                alert("Couldn't load default image. Please upload your own image.");
+            };
+            // Default to a black background if no image loads
+            img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        }
+        
+        // Load image from source
+        function loadImage(src) {
+            const img = new Image();
+            img.onload = function() {
+                originalImage = img;
+                resizeCanvas();
+                drawImage();
+            };
+            img.src = src;
+        }
+        
+        // Resize canvas to window
+        function resizeCanvas() {
+            sourceCanvas.width = window.innerWidth;
+            sourceCanvas.height = window.innerHeight;
+        }
+        
+        // Draw image on canvas
+        function drawImage() {
+            if (!originalImage) return;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
+            
+            // Calculate scaling to cover the canvas while maintaining aspect ratio
+            const scale = Math.max(
+                sourceCanvas.width / originalImage.width,
+                sourceCanvas.height / originalImage.height
+            );
+            
+            const scaledWidth = originalImage.width * scale;
+            const scaledHeight = originalImage.height * scale;
+            
+            // Center the image
+            const x = (sourceCanvas.width - scaledWidth) / 2;
+            const y = (sourceCanvas.height - scaledHeight) / 2;
+            
+            // Draw the image
+            ctx.drawImage(originalImage, x, y, scaledWidth, scaledHeight);
+        }
+        
+        // Process image to find bright points
+        function processImage() {
+            if (!originalImage) {
+                alert("Please upload an image first!");
+                return;
+            }
+            
+            // Clear previous emojis
+            emojiLayer.innerHTML = '';
+            
+            const threshold = parseInt(brightnessThresholdSlider.value);
+            const emoji = emojiSelect.value;
+            
+            const imageData = ctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+            const data = imageData.data;
+            
+            const blockSize = 5; // Check every 5 pixels to improve performance
+            const minDistance = 20; // Minimum distance between emojis
+            
+            const points = [];
+            
+            // Scan the image for bright points
+            for (let y = 0; y < sourceCanvas.height; y += blockSize) {
+                for (let x = 0; x < sourceCanvas.width; x += blockSize) {
+                    const index = (y * sourceCanvas.width + x) * 4;
+                    const r = data[index];
+                    const g = data[index + 1];
+                    const b = data[index + 2];
+                    
+                    // Calculate brightness (simple average)
+                    const brightness = (r + g + b) / 3;
+                    
+                    if (brightness > threshold) {
+                        // Check if this point is far enough from all other detected points
+                        let tooClose = false;
+                        for (const point of points) {
+                            const distance = Math.sqrt(
+                                Math.pow(x - point.x, 2) + Math.pow(y - point.y, 2)
+                            );
+                            if (distance < minDistance) {
+                                tooClose = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!tooClose) {
+                            points.push({ x, y, brightness });
+                        }
+                    }
+                }
+            }
+            
+            // Add emoji for each bright point
+            points.forEach(point => {
+                const emojiElement = document.createElement('div');
+                emojiElement.className = 'ribbon-emoji';
+                emojiElement.textContent = emoji;
+                emojiElement.style.left = `${point.x}px`;
+                emojiElement.style.top = `${point.y}px`;
+                
+                // Scale emoji size based on brightness
+                const size = 12 + (point.brightness - threshold) / 10;
+                emojiElement.style.fontSize = `${size}px`;
+                
+                emojiLayer.appendChild(emojiElement);
+            });
+        }
+        
+        // Create download function
+        function downloadResult() {
+            // Create a new canvas for the combined result
+            const resultCanvas = document.createElement('canvas');
+            resultCanvas.width = sourceCanvas.width;
+            resultCanvas.height = sourceCanvas.height;
+            const resultCtx = resultCanvas.getContext('2d');
+            
+            // Draw the original image
+            resultCtx.drawImage(sourceCanvas, 0, 0);
+            
+            // Draw emojis on top
+            const emojis = document.querySelectorAll('.ribbon-emoji');
+            emojis.forEach(emoji => {
+                resultCtx.font = `${emoji.style.fontSize} Arial`;
+                resultCtx.fillText(
+                    emoji.textContent,
+                    parseFloat(emoji.style.left) - parseFloat(emoji.style.fontSize) / 2,
+                    parseFloat(emoji.style.top) + parseFloat(emoji.style.fontSize) / 4
+                );
+            });
+            
+            // Create download link
+            const link = document.createElement('a');
+            link.download = 'ribbon-sky.png';
+            link.href = resultCanvas.toDataURL('image/png');
+            link.click();
+        }
+        
+        // Event listeners
+        processBtn.addEventListener('click', processImage);
+        downloadBtn.addEventListener('click', downloadResult);
+        window.addEventListener('resize', function() {
+            resizeCanvas();
+            drawImage();
+        });
+        
+        // Try to grab image from the page if it exists
+        window.addEventListener('load', function() {
+            try {
+                // Try to capture the current background image if available
+                const computedStyle = getComputedStyle(document.body);
+                if (computedStyle.backgroundImage && computedStyle.backgroundImage !== 'none') {
+                    const bgUrl = computedStyle.backgroundImage.slice(4, -1).replace(/"/g, "");
+                    loadImage(bgUrl);
+                } else {
+                    // If image is visible on the page
+                    const visibleImages = Array.from(document.images).filter(img => {
+                        const rect = img.getBoundingClientRect();
+                        return (
+                            rect.top >= 0 &&
+                            rect.left >= 0 &&
+                            rect.bottom <= window.innerHeight &&
+                            rect.right <= window.innerWidth
+                        );
+                    });
+                    
+                    if (visibleImages.length > 0) {
+                        loadImage(visibleImages[0].src);
+                    } else {
+                        loadDefaultImage();
+                    }
+                }
+            } catch (err) {
+                loadDefaultImage();
+            }
+        });
+        
+        // Initially load the default image
+        loadDefaultImage();
+    </script>
+</body>
+</html>
